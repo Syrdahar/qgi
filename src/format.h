@@ -1,6 +1,8 @@
 #ifndef FORMAT
 #define FORMAT
 
+#include <string>
+
 #define u8 unsigned char
 #define u32 unsigned
 #define u64 unsigned long long
@@ -18,8 +20,11 @@ struct Header
 
 class Format {
 public:
-    virtual void Write (const char* path, Header& header, char*& bytes);
-    virtual void Read (const char* path, Header& header, char*& bytes);
+    explicit Format(std::string path);
+    virtual void Write (Header& header, char*& bytes);
+    virtual void Read (Header& header, char*& bytes);
+protected:
+    std::string path;
 };
 
 

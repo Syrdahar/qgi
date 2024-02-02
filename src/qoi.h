@@ -7,8 +7,9 @@
 
 class qoi : public Format {
 public:
-    void Write(const char* path, Header& header, char*& bytes) override;
-    void Read (const char* path, Header& header, char*& bytes) override;
+    using Format::Format;
+    void Write(Header& header, char*& bytes) override;
+    void Read (Header& header, char*& bytes) override;
 private:
     const u64 QOI_EOF = 0x0000000000000001;
     const u32 QOI_SIGNATURE = 0x716f6966;

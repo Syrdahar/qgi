@@ -6,19 +6,22 @@ u8 lookupIndex(char* rgba)
     return ((u8)rgba[0]*3u + (u8)rgba[1]*5u + (u8)rgba[2]*7u + (u8)rgba[3]*11u)%64u;
 }
 
-void qoi::Write(const char *path, Header &header, char *&bytes){
+
+void qoi::Write(Header &header, char *&bytes){
     //?
 }
 
-void qoi::Read(const char *path, Header &header, char *&bytes) {
+void qoi::Read(Header &header, char *&bytes) {
     std::ifstream file(path, std::ios::binary|std::ios::in);
 
 
     //read signature
     u32 read_signature;
-    READ_BYTES(file, read_signature);
-    if (read_signature != QOI_SIGNATURE)
-        throw std::invalid_argument("wrong file format");
+    READ_BYTES(file, read_signature)
+    if (read_signature != QOI_SIGNATURE){
+        delete [] bytes;
+        throw std::invalid_argument("wrong file format (bad SIGNATURE)");
+    }
 
     //read header
     READ_BYTES(file, header.width)
@@ -90,6 +93,14 @@ void qoi::Read(const char *path, Header &header, char *&bytes) {
                 *((u32*)pointer) = *((u32*)(pointer-4));
             }
         }
+    }
+
+    // read eof
+    u64 read_eof;
+    READ_BYTES(file, read_eof)
+    if (read_eof != QOI_EOF) {
+        //delete [] bytes;
+        //throw std::invalid_argument("wrong file format (bad EOF)");
     }
 
 
