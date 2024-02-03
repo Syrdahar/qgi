@@ -65,7 +65,7 @@ void qoi::Read(Header &header, char *&bytes) {
         // check for 2 bits flag
         else if (flag == QOI_OP_INDEX)
         {
-            *((u32*)pointer) = lookupTable[lookupIndex(pointer)]; // copy the value
+            *((u32*)pointer) = lookupTable[(u8)arg]; // copy the value
         }
         else if (flag == QOI_OP_DIFF)
         {
