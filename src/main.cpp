@@ -15,10 +15,15 @@ char get_gradient_char(char* rgba)
 
 int main()
 {
-    qoi image("../images/dice.qoi");
+    qoi dice("../images/dice.qoi");
+    qoi image("../images/test.qoi");
 
 
+    dice.Read(header, bytes);
+
+    image.Write(header, bytes);
     image.Read(header, bytes);
+
 
 
     std::ofstream file("../images/test.txt");

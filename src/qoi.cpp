@@ -11,12 +11,115 @@ u8 lookupIndex(char* rgba)
 
 
 void qoi::Write(Header &header, char *&bytes){
-    //?
+    std::ofstream file(path, std::ios::binary|std::ios::out);
+
+    //write signature
+    WRITE_BYTES(file, QOI_SIGNATURE);
+
+    // write header
+    WRITE_BYTES(file, header.width)
+    WRITE_BYTES(file, header.height)
+    file.write((char*)&header.channels, 1);
+    file.write((char*)&header.colorspace, 1);
+
+    // init lookupTable
+    u32 lookupTable[64] = {0u}; // 4bytes : r g b a = 32bits
+
+    // write the firs byte (different because there is no previous byte)
+    if (*((u32*)bytes) == 0u) // color = 0 0 0 0 --> index
+        file.write((char*)&QOI_OP_INDEX, 1); //index to what ever element (here 0) because they are 0 initialized
+    else if (*((u8*)bytes) == 0xff) // alpha = 255 --> RGB
+    {
+        file.write((char*)&QOI_OP_RGB, 1);
+        file.write(bytes, 3); // rgb only
+    }
+    else // rgba
+    {
+        file.write((char*)&QOI_OP_RGBA, 1);
+        file.write(bytes, 4);
+    }
+
+
+    // go through the bytes chain
+    u8 byte, arg;
+    char dr,dg,db;
+    for (char* pointer = bytes+4; pointer<bytes+header.length; pointer+=4) // +=4 for (r g b a)
+    {
+        if (*((u32*)pointer) == *((u32*)(pointer-4))) // RUN
+        {
+            arg = 0u; // = 1 (stored with a bias of -1)
+            while (*((u32*)pointer) == *((u32*)(pointer+4)) && arg!=0b111101){
+                arg++;
+                pointer+=4;
+            }
+            byte = QOI_OP_RUN | arg;
+            file.write((char*)&byte, 1);
+        }
+        else if (*((u32*)pointer) == lookupTable[lookupIndex(pointer)]) // INDEX
+        {
+            byte = QOI_OP_INDEX | lookupIndex(pointer);
+            file.write((char*)&byte, 1);
+        }
+        else if (*(pointer+3) == *(pointer-1))
+        {
+            dr = *pointer    -*(pointer-4);
+            dg = *(pointer+1)-*(pointer-3);
+            db = *(pointer+2)-*(pointer-2);
+
+            if (-2 <= dr && dr <= 1
+             && -2 <= dg && dg <= 1
+             && -2 <= db && db <= 1)// DIFF
+            {
+                byte =  (u8)(db +2);
+                byte |= (u8)(dg +2) << 2;
+                byte |= (u8)(dr +2) << 4;
+                byte |= QOI_OP_DIFF;
+
+                file.write((char*)&byte,1);
+
+                lookupTable[lookupIndex(pointer)] = *((u32*)pointer);
+            }
+            else if (-8  <= dr-dg && dr-dg <= 7
+                  && -32 <= dg    && dg    <= 31
+                  && -8  <= db-dg && db-dg <= 7)// LUMA
+            {
+                byte =  QOI_OP_LUMA;
+                byte |= (u8)(dg + 32);
+
+                file.write((char*)&byte,1);
+
+                byte =  (u8)(db - dg + 8);
+                byte |= (u8)(dr - dg + 8) << 4;
+
+                file.write((char*)&byte,1);
+
+                lookupTable[lookupIndex(pointer)] = *((u32*)pointer);
+            }
+            else // RGB
+            {
+                file.write((char*)&QOI_OP_RGB, 1);
+                file.write(pointer, 3);
+
+                lookupTable[lookupIndex(pointer)] = *((u32*)pointer);
+            }
+        }
+        else // RGBA
+        {
+            file.write((char*)&QOI_OP_RGBA, 1);
+            file.write(pointer, 4);
+
+            lookupTable[lookupIndex(pointer)] = *((u32*)pointer);
+        }
+    }
+
+    //write eof
+    WRITE_BYTES(file, QOI_EOF);
+
+    file.close();
 }
 
 void qoi::Read(Header &header, char *&bytes) {
     std::ifstream file(path, std::ios::binary|std::ios::in);
-
 
     //read signature
     u32 read_signature;
