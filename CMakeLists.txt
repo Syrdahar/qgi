@@ -8,4 +8,6 @@ include_directories(src)
 add_executable(qgi
         src/main.cpp
         src/qoi.cpp
-        src/qoi.h)
+        src/qoi.h
+        src/qgi.h
+        src/qgi.cpp)

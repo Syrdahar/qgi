@@ -1,44 +1,45 @@
-#include "qoi.h"
+#include "qgi.h"
 #include <fstream>
 
+#include <iostream>
+using namespace std;
+#define DISPLAY64(x) for(u8 _ = 63; _!=0xff; _--){cout << ((x&(1ull<<_))!=0);}cout << endl;
+
 #define u8 unsigned char
+#define u16 unsigned short
 #define u32 unsigned
 #define u64 unsigned long long
 
 #define WRITE_BYTES(file, x) for(char* _=(char*)&x+sizeof(x)-1;_>=(char*)&x;_--){file.write(_,1);}
 #define READ_BYTES(file, x) for(char* _=(char*)&x+sizeof(x)-1;_>=(char*)&x;_--){file.read(_,1);}
 
-
 #define lookupIndex(rgba) (((u8)rgba[0]*3u + (u8)rgba[1]*5u + (u8)rgba[2]*7u + (u8)rgba[3]*11u)%64u)
 
 
-
-void QOI::Write(std::string path, Header &header, char *&bytes) {
+void QGI::Write(std::string path, Header &header, char *&bytes) {
     std::ofstream file(path, std::ios::binary|std::ios::out);
 
     //write signature
-    WRITE_BYTES(file, QOI_SIGNATURE);
+    WRITE_BYTES(file, QGI_SIGNATURE);
 
     // write header
     WRITE_BYTES(file, header.width)
     WRITE_BYTES(file, header.height)
-    file.write((char*)&header.channels, 1);
-    file.write((char*)&header.colorspace, 1);
 
     // init lookupTable
     u32 lookupTable[64] = {0u}; // 4bytes : r g b a = 32bits
 
     // write the firs byte (different because there is no previous byte)
     if (*((u32*)bytes) == 0u) // color = 0 0 0 0 --> index
-        file.write((char*)&QOI_OP_INDEX, 1); //index to what ever element (here 0) because they are 0 initialized
+        file.write((char*)&QGI_OP_INDEX, 1); //index to what ever element (here 0) because they are 0 initialized
     else if (*((u8*)bytes) == 0xff) // alpha = 255 --> RGB
     {
-        file.write((char*)&QOI_OP_RGB, 1);
+        file.write((char*)&QGI_OP_RGB, 1);
         file.write(bytes, 3); // rgb only
     }
     else // rgba
     {
-        file.write((char*)&QOI_OP_RGBA, 1);
+        file.write((char*)&QGI_OP_RGBA, 1);
         file.write(bytes, 4);
     }
 
@@ -48,19 +49,31 @@ void QOI::Write(std::string path, Header &header, char *&bytes) {
     char dr,dg,db;
     for (char* pointer = bytes+4; pointer<bytes+header.length; pointer+=4) // +=4 for (r g b a)
     {
-        if (*((u32*)pointer) == *((u32*)(pointer-4))) // RUN
+        if (*((u32*)pointer) == *((u32*)(pointer-4))) // RUN only if length >= 2 (else 1:index 0:useless)
         {
-            arg = 0u; // = 1 (stored with a bias of -1)
-            while (*((u32*)pointer) == *((u32*)(pointer+4)) && arg!=0b111101){
-                arg++;
+            bool longRun = false;
+            arg = 0x01;
+            while (arg!=0xff && pointer+4<bytes+header.length && *((u32*)pointer) == *((u32*)(pointer+4))){
                 pointer+=4;
+                arg++;
+                if (arg == 0x3f && !longRun) // max length for normal run
+                {
+                    file.write((char*)&QGI_OP_LONGRUN,1);
+                    arg = 0x00;
+                    longRun = true;
+                }
             }
-            byte = QOI_OP_RUN | arg;
+            if (longRun)
+                byte = arg;
+            else if (arg > 0x01)
+                byte = QGI_OP_RUN | arg;
+            else
+                byte = QGI_OP_INDEX | lookupIndex(pointer); // last pixel always stored into the lookup table
             file.write((char*)&byte, 1);
         }
         else if (*((u32*)pointer) == lookupTable[lookupIndex(pointer)]) // INDEX
         {
-            byte = QOI_OP_INDEX | lookupIndex(pointer);
+            byte = QGI_OP_INDEX | lookupIndex(pointer);
             file.write((char*)&byte, 1);
         }
         else if (*(pointer+3) == *(pointer-1))
@@ -76,7 +89,7 @@ void QOI::Write(std::string path, Header &header, char *&bytes) {
                 byte =  (u8)(db +2);
                 byte |= (u8)(dg +2) << 2;
                 byte |= (u8)(dr +2) << 4;
-                byte |= QOI_OP_DIFF;
+                byte |= QGI_OP_DIFF;
 
                 file.write((char*)&byte,1);
 
@@ -86,7 +99,7 @@ void QOI::Write(std::string path, Header &header, char *&bytes) {
                      && -32 <= dg    && dg    <= 31
                      && -8  <= db-dg && db-dg <= 7)// LUMA
             {
-                byte =  QOI_OP_LUMA;
+                byte =  QGI_OP_LUMA;
                 byte |= (u8)(dg + 32);
 
                 file.write((char*)&byte,1);
@@ -100,7 +113,7 @@ void QOI::Write(std::string path, Header &header, char *&bytes) {
             }
             else // RGB
             {
-                file.write((char*)&QOI_OP_RGB, 1);
+                file.write((char*)&QGI_OP_RGB, 1);
                 file.write(pointer, 3);
 
                 lookupTable[lookupIndex(pointer)] = *((u32*)pointer);
@@ -108,7 +121,7 @@ void QOI::Write(std::string path, Header &header, char *&bytes) {
         }
         else // RGBA
         {
-            file.write((char*)&QOI_OP_RGBA, 1);
+            file.write((char*)&QGI_OP_RGBA, 1);
             file.write(pointer, 4);
 
             lookupTable[lookupIndex(pointer)] = *((u32*)pointer);
@@ -116,18 +129,18 @@ void QOI::Write(std::string path, Header &header, char *&bytes) {
     }
 
     //write eof
-    WRITE_BYTES(file, QOI_EOF);
+    WRITE_BYTES(file, QGI_EOF);
 
     file.close();
 }
 
-void QOI::Read(std::string path, Header &header, char *&bytes) {
+void QGI::Read(std::string path, Header &header, char *&bytes) {
     std::ifstream file(path, std::ios::binary|std::ios::in);
 
     //read signature
     u32 read_signature;
     READ_BYTES(file, read_signature)
-    if (read_signature != QOI_SIGNATURE){
+    if (read_signature != QGI_SIGNATURE){
         delete [] bytes;
         throw std::invalid_argument("wrong file format (bad SIGNATURE)");
     }
@@ -135,8 +148,6 @@ void QOI::Read(std::string path, Header &header, char *&bytes) {
     //read header
     READ_BYTES(file, header.width)
     READ_BYTES(file, header.height)
-    file.read((char*)&header.channels, 1);
-    file.read((char*)&header.colorspace, 1);
 
     // init lookupTable
     u32 lookupTable[64] = {0u}; // 4bytes : r g b a = 32bits
@@ -154,26 +165,38 @@ void QOI::Read(std::string path, Header &header, char *&bytes) {
         arg = 0b00111111&byte;
 
         // check for 8 bits flag
-        if (byte == QOI_OP_RGB)
+        if (byte == QGI_OP_RGB)
         {
             file.read(pointer, 3); // RGB
             *(pointer+3) = pointer==bytes ? (char)0xff : *(pointer-1); // A  (1 if it's the first byte else take the alpha of the previous byte)
 
             lookupTable[lookupIndex(pointer)] = *((u32*)pointer); // update lookupTable
         }
-        else if (byte == QOI_OP_RGBA)
+        else if (byte == QGI_OP_RGBA)
         {
             file.read(pointer, 4); // RGBA
 
             lookupTable[lookupIndex(pointer)] = *((u32*)pointer); // update lookupTable
         }
+        else if (byte == QGI_OP_LONGRUN)
+        {
+            file.read((char*)&byte, 1); // read 1 more byte for the runLength
+
+            u16 runLength = byte + 0x3f;
+            u16 i = 0u;
+            while (++i<runLength) {
+                *((u32*)pointer) = *((u32*)(pointer-4));
+                pointer+=4;
+            }
+            *((u32*)pointer) = *((u32*)(pointer-4));
+        }
 
         // check for 2 bits flag
-        else if (flag == QOI_OP_INDEX)
+        else if (flag == QGI_OP_INDEX)
         {
             *((u32*)pointer) = lookupTable[(u8)arg]; // copy the value
         }
-        else if (flag == QOI_OP_DIFF)
+        else if (flag == QGI_OP_DIFF)
         {
             *((u32*)pointer) = *((u32*)(pointer-4)); // copy the last
             *pointer += (char)(arg>>4) - 2;//dr
@@ -183,7 +206,7 @@ void QOI::Read(std::string path, Header &header, char *&bytes) {
 
             lookupTable[lookupIndex(pointer)] = *((u32*)pointer); // update lookupTable
         }
-        else if (flag == QOI_OP_LUMA)
+        else if (flag == QGI_OP_LUMA)
         {
             *((u32*)pointer) = *((u32*)(pointer-4)); // copy the last
             *(pointer+1) += (char)arg - 32;//dg
@@ -196,21 +219,22 @@ void QOI::Read(std::string path, Header &header, char *&bytes) {
 
             lookupTable[lookupIndex(pointer)] = *((u32*)pointer); // update lookupTable
         }
-        else if (flag == QOI_OP_RUN)
+        else if (flag == QGI_OP_RUN)
         {
-            u8 i = 0;
-            while (i++<arg) {
+            u8 i = 0u;
+            while (++i<arg) {
                 *((u32*)pointer) = *((u32*)(pointer-4));
                 pointer+=4;
             }
-            *((u32*)pointer) = *((u32*)(pointer-4));// <= because arg is stored with a bias of -1
+            *((u32*)pointer) = *((u32*)(pointer-4));
         }
     }
 
     // read eof
     u64 read_eof;
     READ_BYTES(file, read_eof)
-    if (read_eof != QOI_EOF) {
+    if (read_eof != QGI_EOF) {
+        DISPLAY64(read_eof)
         delete [] bytes;
         throw std::invalid_argument("wrong file format (bad EOF)");
     }

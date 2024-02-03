@@ -7,7 +7,7 @@ namespace QOI {
 
     struct Header
     {
-        unsigned width,height,length; // length = width*height*4 for images
+        unsigned width,height,length; // length = width*height*4 for rgba images
         unsigned char channels, colorspace;
     };
 
@@ -19,6 +19,7 @@ namespace QOI {
 
     const unsigned char QOI_OP_RGB = 0xfe;
     const unsigned char QOI_OP_RGBA = 0xff;
+
     const unsigned char QOI_OP_INDEX = 0x00;
     const unsigned char QOI_OP_DIFF = 0x40;
     const unsigned char QOI_OP_LUMA = 0x80;
