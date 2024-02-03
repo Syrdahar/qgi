@@ -1,3 +1,4 @@
 LICENSE
-main.exe
+.idea/*
+cmake-build-debug/*
 .gitignore
