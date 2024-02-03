@@ -4,7 +4,10 @@
 
 using namespace std;
 
-Header header;
+#define u8 unsigned char
+#define u32 unsigned
+
+QOI::Header header;
 char* bytes;
 
 char gradient[8] = {' ', '.', ',', ':', ';', 'o', '0', '@'};
@@ -15,15 +18,10 @@ char get_gradient_char(char* rgba)
 
 int main()
 {
-    qoi dice("../images/dice.qoi");
-    qoi image("../images/test.qoi");
 
-
-    dice.Read(header, bytes);
-
-    image.Write(header, bytes);
-    image.Read(header, bytes);
-
+    QOI::Read("../images/dice.qoi",header, bytes);
+    QOI::Write("../images/test.qoi", header, bytes);
+    QOI::Read("../images/test.qoi", header, bytes);
 
 
     std::ofstream file("../images/test.txt");

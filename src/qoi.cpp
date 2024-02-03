@@ -1,8 +1,12 @@
 #include "qoi.h"
 #include <fstream>
 
-#define DEBUG
+#define u8 unsigned char
+#define u32 unsigned
+#define u64 unsigned long long
 
+#define WRITE_BYTES(file, x) for(char* _=(char*)&x+sizeof(x)-1;_>=(char*)&x;_--){file.write(_,1);}
+#define READ_BYTES(file, x) for(char* _=(char*)&x+sizeof(x)-1;_>=(char*)&x;_--){file.read(_,1);}
 
 u8 lookupIndex(char* rgba)
 {
@@ -10,7 +14,7 @@ u8 lookupIndex(char* rgba)
 }
 
 
-void qoi::Write(Header &header, char *&bytes){
+void QOI::Write(std::string path, Header &header, char *&bytes) {
     std::ofstream file(path, std::ios::binary|std::ios::out);
 
     //write signature
@@ -67,8 +71,8 @@ void qoi::Write(Header &header, char *&bytes){
             db = *(pointer+2)-*(pointer-2);
 
             if (-2 <= dr && dr <= 1
-             && -2 <= dg && dg <= 1
-             && -2 <= db && db <= 1)// DIFF
+                && -2 <= dg && dg <= 1
+                && -2 <= db && db <= 1)// DIFF
             {
                 byte =  (u8)(db +2);
                 byte |= (u8)(dg +2) << 2;
@@ -80,8 +84,8 @@ void qoi::Write(Header &header, char *&bytes){
                 lookupTable[lookupIndex(pointer)] = *((u32*)pointer);
             }
             else if (-8  <= dr-dg && dr-dg <= 7
-                  && -32 <= dg    && dg    <= 31
-                  && -8  <= db-dg && db-dg <= 7)// LUMA
+                     && -32 <= dg    && dg    <= 31
+                     && -8  <= db-dg && db-dg <= 7)// LUMA
             {
                 byte =  QOI_OP_LUMA;
                 byte |= (u8)(dg + 32);
@@ -118,7 +122,7 @@ void qoi::Write(Header &header, char *&bytes){
     file.close();
 }
 
-void qoi::Read(Header &header, char *&bytes) {
+void QOI::Read(std::string path, Header &header, char *&bytes) {
     std::ifstream file(path, std::ios::binary|std::ios::in);
 
     //read signature
