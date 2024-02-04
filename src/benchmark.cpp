@@ -1,16 +1,15 @@
 #include <iostream>
 #include "qoi.h"
 #include "qgi.h"
+#include "benchmark.h"
 
 using namespace std;
 
 #define u8 unsigned char
 #define u32 unsigned
 
-namespace BENCH
-{
-    static void perf_t(string path, string format) {
-        char *bytes_;
+void BENCH::perf_t(std::string path, std::string format, u8 run_time) { //runtime en seconde
+    char *bytes_;
         double diff;
         time_t start_t;
         if (format == "QOI") {
@@ -55,5 +54,4 @@ namespace BENCH
 
 
         delete[] bytes_;
-    }
 }

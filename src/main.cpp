@@ -2,6 +2,7 @@
 #include <fstream>
 #include "qoi.h"
 #include "qgi.h"
+#include "benchmark.h"
 
 using namespace std;
 
