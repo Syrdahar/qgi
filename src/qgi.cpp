@@ -52,24 +52,50 @@ void QGI::Write(std::string path, Header &header, char *&bytes) {
         if (*((u32*)pointer) == *((u32*)(pointer-4))) // RUN only if length >= 2 (else 1:index 0:useless)
         {
             bool longRun = false;
-            arg = 0x01;
-            while (arg!=0xff && pointer+4<bytes+header.length && *((u32*)pointer) == *((u32*)(pointer+4))){
+            u16 runLength = 1u;
+            while (runLength!=318u && pointer+4<bytes+header.length && *((u32*)pointer) == *((u32*)(pointer+4))){
                 pointer+=4;
-                arg++;
-                if (arg == 0x3f && !longRun) // max length for normal run
+                runLength++;
+                if (runLength == 64u && !longRun) // max length for normal run
                 {
-                    file.write((char*)&QGI_OP_LONGRUN,1);
-                    arg = 0x00;
+                    runLength = 0u; // -64
                     longRun = true;
                 }
             }
-            if (longRun)
-                byte = arg;
-            else if (arg > 0x01)
-                byte = QGI_OP_RUN | arg;
-            else
+            if (longRun) {
+                if (runLength < 63u) // can be written as 2 run instead of a long run
+                {
+                    // first run
+                    byte = QGI_OP_RUN | 63u; // 64-1 : need to add 1 to the second run
+                    file.write((char*)&byte, 1);
+
+                    // second run
+                    if (runLength == 0u) // can be written as an index
+                    {
+                        byte = QGI_OP_INDEX | lookupIndex(pointer);
+                        file.write((char*)&byte, 1);
+                    }
+                    else // normal run
+                    {
+                        byte = QGI_OP_RUN | (runLength+1u);
+                        file.write((char*)&byte, 1);
+                    }
+                }
+                else // normal long run
+                {
+                    file.write((char*)&QGI_OP_LONGRUN,1);
+                    byte = runLength-63u;
+                    file.write((char*)&byte, 1);
+                }
+            }
+            else if (runLength != 1u) { // normal run
+                byte = QGI_OP_RUN | runLength;
+                file.write((char*)&byte, 1);
+            }
+            else { // can be written as an index
                 byte = QGI_OP_INDEX | lookupIndex(pointer); // last pixel always stored into the lookup table
-            file.write((char*)&byte, 1);
+                file.write((char*)&byte, 1);
+            }
         }
         else if (*((u32*)pointer) == lookupTable[lookupIndex(pointer)]) // INDEX
         {
@@ -142,7 +168,7 @@ void QGI::Read(std::string path, Header &header, char *&bytes) {
     READ_BYTES(file, read_signature)
     if (read_signature != QGI_SIGNATURE){
         delete [] bytes;
-        throw std::invalid_argument("wrong file format (bad SIGNATURE)");
+        throw std::invalid_argument("READ ERROR : wrong file format (bad SIGNATURE)");
     }
 
     //read header
@@ -182,7 +208,7 @@ void QGI::Read(std::string path, Header &header, char *&bytes) {
         {
             file.read((char*)&byte, 1); // read 1 more byte for the runLength
 
-            u16 runLength = byte + 0x3f;
+            u16 runLength = byte + 127u;
             u16 i = 0u;
             while (++i<runLength) {
                 *((u32*)pointer) = *((u32*)(pointer-4));
@@ -236,7 +262,7 @@ void QGI::Read(std::string path, Header &header, char *&bytes) {
     if (read_eof != QGI_EOF) {
         DISPLAY64(read_eof)
         delete [] bytes;
-        throw std::invalid_argument("wrong file format (bad EOF)");
+        throw std::invalid_argument("READ ERROR : wrong file format (bad EOF)");
     }
 
 
