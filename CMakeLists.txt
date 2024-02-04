@@ -10,4 +10,5 @@ add_executable(qgi
         src/qoi.cpp
         src/qoi.h
         src/qgi.h
-        src/qgi.cpp)
+        src/qgi.cpp
+        src/benchmark.cpp)
