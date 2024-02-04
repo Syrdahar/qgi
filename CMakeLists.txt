@@ -12,4 +12,5 @@ add_executable(qgi
         src/qgi.h
         src/qgi.cpp
         src/benchmark.cpp
-        src/benchmark.h)
+        src/benchmark.h
+        src/stb_image.h)
